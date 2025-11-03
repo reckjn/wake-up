@@ -60,9 +60,23 @@ func main() {
   app.rootNode = rootNode
   app.start()
 
+  // Initialize time synchronization
+  let timer = Timer()
+
   // Keep local variables alive. Workaround for issue #10
   // https://github.com/apple/swift-matter-examples/issues/10
   while true {
+    timer.updateCurrentTime()
+    if let timerCurrentTime = timer.currentTime {
+      print("Current Time: \(timerCurrentTime.toString())")
+
+      if timerCurrentTime.second%5 == 0 {
+        led.enabled = true
+      }
+      if timerCurrentTime.second%5 == 2 {
+        led.enabled = false
+      }
+    }
     sleep(1)
   }
 }

@@ -83,6 +83,7 @@ target_sources(${COMPONENT_LIB}
     PRIVATE
     Main.swift
     LED.swift
+    Timer.swift
     ../Matter/Attribute.swift
     ../Matter/Clusters.swift
     ../Matter/Matter.swift

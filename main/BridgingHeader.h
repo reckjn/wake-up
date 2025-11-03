@@ -44,6 +44,7 @@ extern "C" char *strdup(const char *s1);
 
 #include <esp_matter.h>
 #include <esp_matter_cluster.h>
+#include <esp_rmaker_utils.h>
 #include <app-common/zap-generated/ids/Clusters.h>
 #include <app/server/Server.h>
 
