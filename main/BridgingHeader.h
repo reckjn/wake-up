@@ -26,6 +26,9 @@
 #include <nvs_flash.h>
 #include <led_driver.h>
 #include <device.h>
+#include "driver/gpio.h"      // GPIO control
+
+
 
 // ESP Matter
 // ==========
@@ -44,9 +47,9 @@ extern "C" char *strdup(const char *s1);
 
 #include <esp_matter.h>
 #include <esp_matter_cluster.h>
-#include <esp_rmaker_utils.h>
 #include <app-common/zap-generated/ids/Clusters.h>
 #include <app/server/Server.h>
+#include <esp_rmaker_utils.h>
 
 // Swift Matter interface
 // ======================

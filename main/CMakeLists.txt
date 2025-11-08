@@ -84,6 +84,7 @@ target_sources(${COMPONENT_LIB}
     Main.swift
     LED.swift
     Timer.swift
+    StepperMotor.swift
     ../Matter/Attribute.swift
     ../Matter/Clusters.swift
     ../Matter/Matter.swift

@@ -15,6 +15,8 @@ func main() {
 
   let led = LED()
 
+  let stepperMotor = StepperMotor()
+
   // (1) Create a Matter root node
   let rootNode = Matter.Node()
   rootNode.identifyHandler = {
@@ -72,6 +74,7 @@ func main() {
 
       if timerCurrentTime.second%5 == 0 {
         led.enabled = true
+        stepperMotor.rotate(degrees: 360)
       }
       if timerCurrentTime.second%5 == 2 {
         led.enabled = false
