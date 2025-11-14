@@ -68,7 +68,7 @@ final class StepperMotor {
   // Lower values = faster rotation, but too low will cause missed steps
   var speed: UInt32 = 2000 {  // 2000μs = 2ms per step
     didSet {
-      speed = max(1000, min(20000, speed))  // Clamp to safe range (1-20ms)
+      speed = max(1500, min(20000, speed))  // Clamp to safe range (1-20ms)
     }
   }
 
@@ -107,22 +107,48 @@ final class StepperMotor {
     gpio_set_level(config.in4Pin, pattern[3])
   }
 
+  // Step with S-curve acceleration for smooth, quiet operation
+  private func stepWithSCurveAcceleration(steps: Int, forward: Bool) {
+    let accelerationSteps = min(steps / 3, 200)  // Use 1/3 for acceleration
+    let startSpeed = UInt32(4000)  // Start slow (4ms)
+    let targetSpeed = speed         // Use configured target speed
+
+    for i in 0..<steps {
+      var speedMultiplier: Float = 1.0
+
+      // S-curve acceleration phase
+      if i < accelerationSteps {
+        let progress = Float(i) / Float(accelerationSteps)
+        // Smooth S-curve formula
+        speedMultiplier = Float(0.5 * (1 - cos(Double(Float.pi * progress))))
+      }
+      // S-curve deceleration phase
+      else if i > (steps - accelerationSteps) {
+        let progress = Float(steps - i) / Float(accelerationSteps)
+        speedMultiplier = Float(0.5 * (1 - cos(Double(Float.pi * progress))))
+      }
+
+      let currentSpeed = targetSpeed + UInt32(Float(startSpeed - targetSpeed) * (1 - speedMultiplier))
+
+      // Perform the step
+      if forward {
+        currentStep = (currentStep + 1) % 8
+      } else {
+        currentStep = (currentStep - 1 + 8) % 8
+      }
+      setStep(currentStep)
+      esp_rom_delay_us(currentSpeed)
+    }
+  }
+
   // Step forward by the specified number of steps
   func stepForward(steps: Int) {
-    for _ in 0..<steps {
-      currentStep = (currentStep + 1) % 8
-      setStep(currentStep)
-      esp_rom_delay_us(speed)
-    }
+    stepWithSCurveAcceleration(steps: steps, forward: true)
   }
 
   // Step backward by the specified number of steps
   func stepBackward(steps: Int) {
-    for _ in 0..<steps {
-      currentStep = (currentStep - 1 + 8) % 8
-      setStep(currentStep)
-      esp_rom_delay_us(speed)
-    }
+    stepWithSCurveAcceleration(steps: steps, forward: false)
   }
 
   // Power down all coils to save power and reduce heat

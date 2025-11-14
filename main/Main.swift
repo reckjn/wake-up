@@ -67,19 +67,43 @@ func main() {
 
   // Keep local variables alive. Workaround for issue #10
   // https://github.com/apple/swift-matter-examples/issues/10
+  var rotationDirection = -1
+
+  var turnOn = true
+
+  gpio_reset_pin(GPIO_NUM_3);
+  gpio_set_direction(GPIO_NUM_3, GPIO_MODE_OUTPUT);
+
   while true {
     timer.updateCurrentTime()
     if let timerCurrentTime = timer.currentTime {
       print("Current Time: \(timerCurrentTime.toString())")
 
       if timerCurrentTime.second%5 == 0 {
-        led.enabled = true
-        stepperMotor.rotate(degrees: 360)
+        // led.enabled = true
+        stepperMotor.rotate(degrees: 180 * rotationDirection)
+        rotationDirection *= -1
       }
-      if timerCurrentTime.second%5 == 2 {
-        led.enabled = false
-      }
+      // if timerCurrentTime.second%5 == 2 {
+      //   led.enabled = false
+      // }
+
+      
+      if timerCurrentTime.second%3 == 0 {
+        // gpio_set_level(GPIO_NUM_3, 0)
+        gpio_set_level(GPIO_NUM_3, 1);  // Strong pull
+        vTaskDelay(50);
+        gpio_set_level(GPIO_NUM_3, 0);  // Back to gentle neo-only
+        // stepperMotor.rotate(degrees: 180 * rotationDirection)
+        // rotationDirection *= -1
+      } 
+      // if timerCurrentTime.second%5 == 1 {
+      //   gpio_set_level(GPIO_NUM_3, 1)
+      // }
     }
+    
+
     sleep(1)
   }
 }
+
