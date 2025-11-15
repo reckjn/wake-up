@@ -72,7 +72,12 @@ func main() {
       print("Current Time: \(timerCurrentTime.toString())")
 
       if timerCurrentTime.second % 5 == 0 {
-        motorDriver.turn(degrees: -360)
+        motorDriver.turn(degrees: -720) {
+          print("Motor turned completed")
+        }
+      }
+      if timerCurrentTime.second % 5 == 1 {
+        motorDriver.stop()
       }
 
       sleep(1)

@@ -1,32 +1,52 @@
-private let MICROSECONDS_PER_MINUTE = UInt32(60_000_000)
+private let MICROSECONDS_PER_MINUTE = UInt64(60_000_000)
 
 // StepperMotorDriver is built for a T2208 motor driver.
-struct StepperMotorDriver {
-    let motor: Motor
-    let pins: Pins
-    let microsteps: Int
-    let stepsPerRevolution: Int
-    var speed: RPM {
+final class StepperMotorDriver {
+    private let motor: Motor
+    private let pins: Pins
+    private let microsteps: Int
+    private let stepsPerRevolution: Int
+    private(set) var speed: RPM {
         // 60 RPM = 1 revolution per second
         didSet {
             ensureSpeedIsWithinMaxSpeed()
         }
     }
 
+    private var remainingStepsOfCurrentTurn: Int = 0
+    private var turnCompletionHandler: (() -> Void)? = nil
+    private var timerConfig: esp_timer_create_args_t
+    private var timerHandle: esp_timer_handle_t?
+
     init(motor: Motor, pins: Pins, microsteps: Int, speed: RPM = 60) {
-        self.motor = motor 
+        self.motor = motor
         self.pins = pins
         self.microsteps = microsteps
         self.stepsPerRevolution = motor.stepsPerRevolution * microsteps
         self.speed = speed
 
+        self.timerConfig = esp_timer_create_args_t()
+        timerConfig.callback = { driverPointer in
+            guard let driverPointer else { return }
+            let driver = Unmanaged<StepperMotorDriver>.fromOpaque(driverPointer).takeUnretainedValue()
+            driver.timerCallback()
+        }
+        timerConfig.arg = Unmanaged.passUnretained(self).toOpaque()
+        timerConfig.dispatch_method = ESP_TIMER_TASK
+        timerConfig.name = "stepper_timer_turn".withCString { $0 }
+
         ensureSpeedIsWithinMaxSpeed()
         initializePins()
+
+        // Leak the object to ensure it stays alive for C callbacks
+        _ = Unmanaged.passRetained(self)
     }
 
-    private mutating func ensureSpeedIsWithinMaxSpeed() {
+    private func ensureSpeedIsWithinMaxSpeed() {
         if speed > motor.maxSpeed {
-            print("WARNING! Max speed is \(motor.maxSpeed) RPM, desired speed is \(speed) RPM which is too high. Setting speed to \(motor.maxSpeed) RPM")
+            print(
+                "WARNING! Max speed is \(motor.maxSpeed) RPM, desired speed is \(speed) RPM which is too high. Setting speed to \(motor.maxSpeed) RPM"
+            )
             speed = motor.maxSpeed
         }
     }
@@ -43,34 +63,74 @@ struct StepperMotorDriver {
         gpio_set_level(pins.enable, 1)  // Disable motor by default (active LOW)
     }
 
-    func turn(degrees: Double) {
+    // Non-blocking
+    func turn(degrees: Double, completion: (() -> Void)? = nil) {
+        stop()
+
         let direction = degrees >= 0 ? Direction.clockwise : Direction.counterclockwise
         setDirection(direction: direction)
 
         let steps = Int(abs(degrees) * Double(stepsPerRevolution) / 360.0)
-        let delayMicroSeconds = MICROSECONDS_PER_MINUTE / UInt32(speed * stepsPerRevolution)
+        let stepIntervalMicroseconds = MICROSECONDS_PER_MINUTE / UInt64(speed * stepsPerRevolution)
 
-        for _ in 0..<steps {
-            gpio_set_level(pins.step, 1)
-            esp_rom_delay_us(delayMicroSeconds)
-            gpio_set_level(pins.step, 0)
+        self.remainingStepsOfCurrentTurn = steps
+        self.turnCompletionHandler = completion
+
+        var createdTimer: esp_timer_handle_t?
+        let timerCreationResult = esp_timer_create(&timerConfig, &createdTimer)
+        guard timerCreationResult == ESP_OK, let createdTimer else {
+            print("Failed to create timer: \(timerCreationResult)")
+            completion?()
+            return
         }
+
+        self.timerHandle = createdTimer
+        esp_timer_start_periodic(createdTimer, UInt64(stepIntervalMicroseconds))
     }
 
-    func setDirection(direction: Direction) {
-        gpio_set_level(pins.direction, direction.rawValue)
+    private func timerCallback() {
+        guard remainingStepsOfCurrentTurn > 0 else {
+            stop()
+            turnCompletionHandler?()
+            turnCompletionHandler = nil
+            return
+        }
+
+        gpio_set_level(pins.step, 1)
+        gpio_set_level(pins.step, 0)
+        remainingStepsOfCurrentTurn -= 1
+    }
+
+    func stop() {
+        if let handle = timerHandle {
+            esp_timer_stop(handle)
+            esp_timer_delete(handle)
+            timerHandle = nil
+        }
+        gpio_set_level(pins.step, 0)
+        remainingStepsOfCurrentTurn = 0
     }
 
     func enable() {
+        stop()
         gpio_set_level(pins.enable, 0)
     }
 
     func disable() {
+        stop()
         gpio_set_level(pins.enable, 1)
     }
 
-    mutating func setSpeed(speed: RPM) {
+    func setSpeed(speed: RPM) {
         self.speed = speed
+    }
+
+    private func setDirection(direction: Direction) {
+        gpio_set_level(pins.direction, direction.rawValue)
+    }
+
+    deinit {
+        stop()
     }
 }
 
