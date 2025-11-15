@@ -11,11 +11,8 @@
 
 @_cdecl("app_main")
 func main() {
-  print("🏎️   Hello, Embedded Swift! (Smart Light)")
 
   let led = LED()
-
-  let stepperMotor = StepperMotor()
 
   // (1) Create a Matter root node
   let rootNode = Matter.Node()
@@ -65,45 +62,20 @@ func main() {
   // Initialize time synchronization
   let timer = Timer()
 
-  // Keep local variables alive. Workaround for issue #10
-  // https://github.com/apple/swift-matter-examples/issues/10
-  var rotationDirection = -1
-
-  var turnOn = true
-
-  gpio_reset_pin(GPIO_NUM_3);
-  gpio_set_direction(GPIO_NUM_3, GPIO_MODE_OUTPUT);
+  let pins = StepperMotorDriver.Pins(enable: GPIO_NUM_4, step: GPIO_NUM_5, direction: GPIO_NUM_6)
+  let motorDriver = StepperMotorDriver(motor: NEMA_17, pins: pins, microsteps: 8)
+  motorDriver.enable()
 
   while true {
     timer.updateCurrentTime()
     if let timerCurrentTime = timer.currentTime {
       print("Current Time: \(timerCurrentTime.toString())")
 
-      if timerCurrentTime.second%5 == 0 {
-        // led.enabled = true
-        stepperMotor.rotate(degrees: 180 * rotationDirection)
-        rotationDirection *= -1
+      if timerCurrentTime.second % 5 == 0 {
+        motorDriver.turn(degrees: -360)
       }
-      // if timerCurrentTime.second%5 == 2 {
-      //   led.enabled = false
-      // }
 
-      
-      if timerCurrentTime.second%3 == 0 {
-        // gpio_set_level(GPIO_NUM_3, 0)
-        gpio_set_level(GPIO_NUM_3, 1);  // Strong pull
-        vTaskDelay(50);
-        gpio_set_level(GPIO_NUM_3, 0);  // Back to gentle neo-only
-        // stepperMotor.rotate(degrees: 180 * rotationDirection)
-        // rotationDirection *= -1
-      } 
-      // if timerCurrentTime.second%5 == 1 {
-      //   gpio_set_level(GPIO_NUM_3, 1)
-      // }
+      sleep(1)
     }
-    
-
-    sleep(1)
   }
 }
-

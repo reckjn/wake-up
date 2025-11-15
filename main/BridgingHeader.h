@@ -26,8 +26,7 @@
 #include <nvs_flash.h>
 #include <led_driver.h>
 #include <device.h>
-#include "driver/gpio.h"      // GPIO control
-
+#include "driver/gpio.h"
 
 
 // ESP Matter
